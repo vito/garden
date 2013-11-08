@@ -7,7 +7,6 @@ import (
 type FakeContainer struct {
 	Spec backend.ContainerSpec
 
-	DestroyError error
 	CopyInError  error
 	CopyOutError error
 
@@ -17,10 +16,6 @@ type FakeContainer struct {
 
 func (c *FakeContainer) Handle() string {
 	return c.Spec.Handle
-}
-
-func (c *FakeContainer) Destroy() error {
-	return c.DestroyError
 }
 
 func (c *FakeContainer) Stop(bool, bool) error {

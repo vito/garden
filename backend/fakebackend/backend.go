@@ -26,6 +26,10 @@ func New() *FakeBackend {
 	}
 }
 
+func (b *FakeBackend) Setup() error {
+	return nil
+}
+
 func (b *FakeBackend) Create(spec backend.ContainerSpec) (backend.Container, error) {
 	if b.CreateError != nil {
 		return nil, b.CreateError
@@ -41,16 +45,6 @@ func (b *FakeBackend) Create(spec backend.ContainerSpec) (backend.Container, err
 func (b *FakeBackend) Destroy(handle string) error {
 	if b.DestroyError != nil {
 		return b.DestroyError
-	}
-
-	container, err := b.Lookup(handle)
-	if err != nil {
-		return err
-	}
-
-	err = container.Destroy()
-	if err != nil {
-		return err
 	}
 
 	delete(b.CreatedContainers, handle)
