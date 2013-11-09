@@ -27,5 +27,6 @@ Vagrant.configure("2") do |config|
     chef.add_recipe "build-essential::default"
     chef.add_recipe "garden::gvm"
     chef.add_recipe "garden::warden"
+    chef.add_recipe "garden::garden"
   end
 end
