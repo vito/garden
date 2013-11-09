@@ -61,21 +61,21 @@ func main() {
 			log.Fatalln("must specify -rootfs with linux backend")
 		}
 
-		pool := resource_pool.New(*rootFSPath)
+		pool := resource_pool.New(path.Join(*rootPath, "linux"), *depotPath, *rootFSPath)
 
-		backend = linuxbackend.New(path.Join(*rootPath, "linux"), *depotPath, *rootFSPath, pool)
+		err := pool.Setup()
+		if err != nil {
+			log.Fatalln("failed to setup resource pool:", err)
+		}
+
+		backend = linuxbackend.New(pool)
 	case "fake":
 		backend = fakebackend.New()
 	}
 
-	err := backend.Setup()
-	if err != nil {
-		log.Fatalln("failed to setup backend:", err)
-	}
-
 	wardenServer := server.New(*socketFilePath, backend)
 
-	err = wardenServer.Start()
+	err := wardenServer.Start()
 	if err != nil {
 		log.Fatalln("failed to start:", err)
 	}

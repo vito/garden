@@ -18,6 +18,10 @@ func (c *FakeContainer) Handle() string {
 	return c.Spec.Handle
 }
 
+func (c *FakeContainer) Start() error {
+	return nil
+}
+
 func (c *FakeContainer) Stop(bool, bool) error {
 	return nil
 }

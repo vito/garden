@@ -1,19 +1,11 @@
 package linuxbackend
 
 import (
-	"fmt"
-	"log"
-	"os/exec"
-	"path"
-
 	"github.com/vito/garden/backend"
 	"github.com/vito/garden/backend/linuxbackend/resource_pool"
 )
 
 type LinuxBackend struct {
-	rootPath     string
-	depotPath    string
-	rootFSPath   string
 	resourcePool *resource_pool.ResourcePool
 
 	containers map[string]*LinuxContainer
@@ -27,76 +19,25 @@ func (e UnknownHandleError) Error() string {
 	return "unknown handle: " + e.Handle
 }
 
-func New(rootPath, depotPath, rootFSPath string, resourcePool *resource_pool.ResourcePool) *LinuxBackend {
+func New(resourcePool *resource_pool.ResourcePool) *LinuxBackend {
 	return &LinuxBackend{
-		rootPath:     rootPath,
-		depotPath:    depotPath,
-		rootFSPath:   rootFSPath,
 		resourcePool: resourcePool,
 
 		containers: make(map[string]*LinuxContainer),
 	}
 }
 
-func (b *LinuxBackend) Setup() error {
-	setup := exec.Command(path.Join(b.rootPath, "setup.sh"))
-
-	setup.Env = []string{
-		"POOL_NETWORK=10.254.0.0/24",
-		"ALLOW_NETWORKS=",
-		"DENY_NETWORKS=",
-		"CONTAINER_ROOTFS_PATH=" + b.rootFSPath,
-		"CONTAINER_DEPOT_PATH=" + b.depotPath,
-		"CONTAINER_DEPOT_MOUNT_POINT_PATH=/",
-		"DISK_QUOTA_ENABLED=true",
-
-		"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
-	}
-
-	out, err := setup.CombinedOutput()
-	if err != nil {
-		fmt.Println("error setting up:", string(out))
-		return err
-	}
-
-	println("done")
-
-	return nil
-}
 func (b *LinuxBackend) Create(spec backend.ContainerSpec) (backend.Container, error) {
 	resources, err := b.resourcePool.Acquire()
 	if err != nil {
 		return nil, err
 	}
 
-	create := exec.Command(
-		path.Join(b.rootPath, "create.sh"),
-		path.Join(b.depotPath, resources.ContainerID()),
-	)
+	container := NewLinuxContainer(spec, resources)
 
-	create.Env = resources.Env()
-
-	out, err := create.CombinedOutput()
+	err = container.Start()
 	if err != nil {
-		log.Println("error creating container:", string(out), create.ProcessState)
 		return nil, err
-	}
-
-	start := exec.Command(
-		path.Join(b.depotPath, resources.ContainerID(), "start.sh"),
-	)
-
-	start.Env = resources.Env()
-
-	out, err = start.CombinedOutput()
-	if err != nil {
-		log.Println("error starting container:", string(out), start.ProcessState)
-		return nil, err
-	}
-
-	container := &LinuxContainer{
-		Spec:      spec,
-		Resources: resources,
 	}
 
 	b.containers[container.Handle()] = container
@@ -110,20 +51,12 @@ func (b *LinuxBackend) Destroy(handle string) error {
 		return UnknownHandleError{handle}
 	}
 
-	destroy := exec.Command(
-		path.Join(b.rootPath, "destroy.sh"),
-		path.Join(b.depotPath, container.Resources.ContainerID()),
-	)
-
-	destroy.Env = container.Resources.Env()
-
-	out, err := destroy.CombinedOutput()
+	err := b.resourcePool.Release(container.Resources)
 	if err != nil {
-		log.Println("error destroying container:", string(out), destroy.ProcessState)
-		return err
+		return nil
 	}
 
-	delete(b.containers, container.Handle())
+	delete(b.containers, handle)
 
 	return nil
 }

@@ -87,6 +87,10 @@ func (s *WardenServer) serveConnection(conn net.Conn) {
 			response, err = s.handleCopyIn(request.(*protocol.CopyInRequest))
 		case *protocol.CopyOutRequest:
 			response, err = s.handleCopyOut(request.(*protocol.CopyOutRequest))
+		case *protocol.SpawnRequest:
+			response, err = s.handleSpawn(request.(*protocol.SpawnRequest))
+		case *protocol.LinkRequest:
+			response, err = s.handleLink(request.(*protocol.LinkRequest))
 		default:
 			err = UnhandledRequestError{request}
 		}
@@ -200,4 +204,46 @@ func (s *WardenServer) handleCopyIn(copyIn *protocol.CopyInRequest) (proto.Messa
 	}
 
 	return &protocol.CopyInResponse{}, nil
+}
+
+func (s *WardenServer) handleSpawn(spawn *protocol.SpawnRequest) (proto.Message, error) {
+	handle := spawn.GetHandle()
+	script := spawn.GetScript()
+
+	jobSpec := backend.JobSpec{
+		Script: script,
+	}
+
+	container, err := s.backend.Lookup(handle)
+	if err != nil {
+		return nil, err
+	}
+
+	jobID, err := container.Spawn(jobSpec)
+	if err != nil {
+		return nil, err
+	}
+
+	return &protocol.SpawnResponse{
+		JobId: proto.Uint32(jobID),
+	}, nil
+}
+
+func (s *WardenServer) handleLink(link *protocol.LinkRequest) (proto.Message, error) {
+	handle := link.GetHandle()
+	jobID := link.GetJobId()
+
+	container, err := s.backend.Lookup(handle)
+	if err != nil {
+		return nil, err
+	}
+
+	jobResult, err := container.Link(jobID)
+	if err != nil {
+		return nil, err
+	}
+
+	return &protocol.LinkResponse{
+		ExitStatus: proto.Uint32(jobResult.ExitStatus),
+	}, nil
 }
