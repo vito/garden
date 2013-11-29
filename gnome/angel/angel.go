@@ -106,7 +106,6 @@ func main() {
 
 	go func() {
 		io.Copy(stdin, os.Stdin)
-		log.Println("stdin done")
 		os.Stdin.Close()
 		stdin.Close()
 		done <- true
@@ -114,7 +113,6 @@ func main() {
 
 	go func() {
 		io.Copy(os.Stdout, stdout)
-		log.Println("stdout done")
 		stdout.Close()
 		os.Stdout.Close()
 		done <- true
@@ -122,7 +120,6 @@ func main() {
 
 	go func() {
 		io.Copy(os.Stderr, stderr)
-		log.Println("stderr done")
 		stderr.Close()
 		os.Stderr.Close()
 		done <- true
@@ -137,7 +134,6 @@ func main() {
 	_, err = fmt.Fscanf(status, "%d\n", &exitStatus)
 	if err != nil {
 		log.Fatalln("error reading status:", err)
-		os.Exit(255)
 	}
 
 	os.Exit(exitStatus)

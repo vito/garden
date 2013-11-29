@@ -107,14 +107,6 @@ func (d *Daemon) serveConnection(conn *net.UnixConn) {
 		return
 	}
 
-	os.Setenv("PATH", "/sbin:/bin:/usr/sbin:/usr/bin")
-
-	cmd := exec.Command(requestMessage.Argv[0], requestMessage.Argv[1:]...)
-
-	cmd.Stdin = stdinOut
-	cmd.Stdout = stdoutIn
-	cmd.Stderr = stderrIn
-
 	rights := syscall.UnixRights(
 		int(stdinIn.Fd()),
 		int(stdoutOut.Fd()),
@@ -128,17 +120,49 @@ func (d *Daemon) serveConnection(conn *net.UnixConn) {
 		return
 	}
 
-	err = cmd.Run()
+	cmd := &exec.Cmd{
+		Path: requestMessage.Argv[0],
+		Args: requestMessage.Argv,
 
-	log.Println("command exited:", err)
+		Env: []string{
+			"PATH=/sbin:/bin:/usr/sbin:/usr/bin",
+		},
 
-	exitStatus := 255
+		Stdin:  stdinOut,
+		Stdout: stdoutIn,
+		Stderr: stderrIn,
 
-	if cmd.ProcessState != nil {
-		exitStatus = int(cmd.ProcessState.Sys().(syscall.WaitStatus) % 255)
+		SysProcAttr: &syscall.SysProcAttr{
+			Setsid: true,
+		},
 	}
 
-	log.Println("exit status:", exitStatus)
+	err = cmd.Start()
+	if err != nil {
+		log.Println("failed starting command:", err)
+		return
+	}
 
-	fmt.Fprintf(statusIn, "%d\n", exitStatus)
+	stdinOut.Close()
+	stdinIn.Close()
+	stdoutOut.Close()
+	stdoutIn.Close()
+	stderrOut.Close()
+	stderrIn.Close()
+
+	go func() {
+		err := cmd.Wait()
+
+		log.Println("command exited:", err)
+
+		exitStatus := 255
+
+		if cmd.ProcessState != nil {
+			exitStatus = int(cmd.ProcessState.Sys().(syscall.WaitStatus) % 255)
+		}
+
+		log.Println("exit status:", exitStatus)
+
+		fmt.Fprintf(statusIn, "%d\n", exitStatus)
+	}()
 }
