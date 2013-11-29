@@ -3,12 +3,12 @@ package main
 import (
 	"encoding/gob"
 	"flag"
-	"net"
-	"io"
-	"os"
-	"log"
-	"syscall"
 	"fmt"
+	"io"
+	"log"
+	"net"
+	"os"
+	"syscall"
 
 	"../protocol"
 )
@@ -26,6 +26,8 @@ var user = flag.String(
 )
 
 func main() {
+	flag.Parse()
+
 	conn, err := net.Dial("unix", *socketPath)
 	if err != nil {
 		log.Fatalln(err)
@@ -33,7 +35,7 @@ func main() {
 
 	request := protocol.RequestMessage{
 		TTY:  false,
-		Argv: os.Args[1:],
+		Argv: flag.Args(),
 		User: *user,
 	}
 
@@ -78,9 +80,57 @@ func main() {
 	stderr := os.NewFile(uintptr(fds[2]), "stderr")
 	status := os.NewFile(uintptr(fds[3]), "status")
 
-	go io.Copy(stdin, os.Stdin)
-	go io.Copy(os.Stdout, stdout)
-	go io.Copy(os.Stderr, stderr)
+	err = syscall.SetNonblock(int(os.Stdin.Fd()), false)
+	if err != nil {
+		log.Fatalln("failed setting fd nonblock:", err)
+	}
+
+	err = syscall.SetNonblock(int(os.Stdout.Fd()), false)
+	if err != nil {
+		log.Fatalln("failed setting fd nonblock:", err)
+	}
+
+	err = syscall.SetNonblock(int(os.Stderr.Fd()), false)
+	if err != nil {
+		log.Fatalln("failed setting fd nonblock:", err)
+	}
+
+	for _, fd := range fds {
+		err := syscall.SetNonblock(fd, false)
+		if err != nil {
+			log.Fatalln("failed setting fd nonblock:", err, fd)
+		}
+	}
+
+	done := make(chan bool)
+
+	go func() {
+		io.Copy(stdin, os.Stdin)
+		log.Println("stdin done")
+		os.Stdin.Close()
+		stdin.Close()
+		done <- true
+	}()
+
+	go func() {
+		io.Copy(os.Stdout, stdout)
+		log.Println("stdout done")
+		stdout.Close()
+		os.Stdout.Close()
+		done <- true
+	}()
+
+	go func() {
+		io.Copy(os.Stderr, stderr)
+		log.Println("stderr done")
+		stderr.Close()
+		os.Stderr.Close()
+		done <- true
+	}()
+
+	<-done
+	<-done
+	<-done
 
 	var exitStatus int
 
@@ -89,8 +139,6 @@ func main() {
 		log.Fatalln("error reading status:", err)
 		os.Exit(255)
 	}
-
-	log.Println("exit:", exitStatus)
 
 	os.Exit(exitStatus)
 }
