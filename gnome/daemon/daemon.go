@@ -107,6 +107,13 @@ func (d *Daemon) serveConnection(conn *net.UnixConn) {
 		return
 	}
 
+	defer stdinOut.Close()
+	defer stdinIn.Close()
+	defer stdoutOut.Close()
+	defer stdoutIn.Close()
+	defer stderrOut.Close()
+	defer stderrIn.Close()
+
 	rights := syscall.UnixRights(
 		int(stdinIn.Fd()),
 		int(stdoutOut.Fd()),
@@ -143,14 +150,10 @@ func (d *Daemon) serveConnection(conn *net.UnixConn) {
 		return
 	}
 
-	stdinOut.Close()
-	stdinIn.Close()
-	stdoutOut.Close()
-	stdoutIn.Close()
-	stderrOut.Close()
-	stderrIn.Close()
-
 	go func() {
+		defer statusIn.Close()
+		defer statusOut.Close()
+
 		err := cmd.Wait()
 
 		log.Println("command exited:", err)
