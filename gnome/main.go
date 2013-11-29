@@ -63,10 +63,7 @@ func createContainerizedProcess() (int, error) {
 }
 
 func childContinue(runPath string) {
-	fmt.Println("pid:", os.Getpid())
-	sid, err := syscall.Setsid()
-	fmt.Println("pid, sid, err:", os.Getpid(), sid, err)
-
+	_, err := syscall.Setsid()
 	if err != nil {
 		panic(err)
 	}
@@ -76,9 +73,6 @@ func childContinue(runPath string) {
 	daemon := daemon.New(path.Join(runPath, "wshd.sock"))
 
 	err = childBarrier.Signal()
-
-	fmt.Println("CHILD -> PARENT", err)
-
 	if err != nil {
 		panic(err)
 	}
@@ -152,41 +146,28 @@ func main() {
 
 	pid, err := createContainerizedProcess()
 
-	fmt.Println("created", pid, err)
-
 	if pid == 0 {
 		err := parentBarrier.Wait()
-
-		fmt.Println("GOT PARENT -> CHILD", err)
+		if err != nil {
+			log.Fatalln(err)
+		}
 
 		err = exec.Command(path.Join(fullLibPath, "hook-child-before-pivot.sh")).Run()
-
-		fmt.Println("hook-child-before-pivot", err)
-
 		if err != nil {
 			log.Fatalln(err)
 		}
 
 		err = os.Chdir(fullRootPath)
-
-		fmt.Println("chdir", err)
-
 		if err != nil {
 			log.Fatalln(err)
 		}
 
 		err = os.MkdirAll("mnt", 0700)
-
-		fmt.Println("mkdir-all", err)
-
 		if err != nil {
 			log.Fatalln(err)
 		}
 
 		err = syscall.PivotRoot(".", "mnt")
-
-		fmt.Println("PIVOOT", err)
-
 		if err != nil {
 			log.Fatalln(err)
 		}
@@ -196,18 +177,12 @@ func main() {
 			log.Fatalln(err)
 		}
 
-		fmt.Println("chdir /", err)
-
 		err = exec.Command(path.Join("/mnt", fullLibPath, "hook-child-after-pivot.sh")).Run()
-
-		fmt.Println("hook-child-after-pivot", err)
-
 		if err != nil {
 			log.Fatalln(err)
 		}
 
 		err = syscall.Exec("/sbin/wshd", []string{"/sbin/wshd", "--continue", "--run", path.Join("/mnt", fullRunPath)}, []string{})
-
 		if err != nil {
 			log.Fatalln(err)
 		}
@@ -221,12 +196,14 @@ func main() {
 	}
 
 	err = parentBarrier.Signal()
-	fmt.Println("PARENT -> CHILD", err)
+	if err != nil {
+		log.Fatalln(err)
+	}
 
 	err = childBarrier.Wait()
-	fmt.Println("GOT CHILD -> PARENT", err)
-
-	println("OK DONE")
+	if err != nil {
+		log.Fatalln(err)
+	}
 
 	os.Exit(0)
 }

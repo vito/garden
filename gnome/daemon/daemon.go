@@ -3,20 +3,20 @@ package daemon
 import (
 	"bytes"
 	"encoding/gob"
-	"net"
 	"fmt"
+	"log"
+	"log/syslog"
+	"net"
 	"os"
 	"os/exec"
 	"syscall"
-	"log/syslog"
-	"log"
 
 	"../protocol"
 )
 
 type Daemon struct {
 	socketPath string
-	logger *syslog.Writer
+	logger     *syslog.Writer
 }
 
 func New(socketPath string) *Daemon {
@@ -57,7 +57,7 @@ func (d *Daemon) handleConnections(listener net.Listener) {
 }
 
 func (d *Daemon) serveConnection(conn *net.UnixConn) {
-	//defer conn.Close()
+	defer conn.Close()
 
 	decoder := gob.NewDecoder(conn)
 
@@ -69,7 +69,7 @@ func (d *Daemon) serveConnection(conn *net.UnixConn) {
 		return
 	}
 
-	fmt.Println("request:", requestMessage)
+	log.Println("request:", requestMessage)
 
 	response := protocol.ResponseMessage{}
 

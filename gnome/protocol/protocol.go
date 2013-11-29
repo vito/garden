@@ -1,9 +1,9 @@
 package protocol
 
 type RequestMessage struct {
-	TTY bool
+	TTY  bool
 	Argv []string
 	User string
 }
 
-type ResponseMessage struct {}
+type ResponseMessage struct{}
