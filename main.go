@@ -7,6 +7,8 @@ import (
 	"path"
 	"strings"
 	"time"
+	"encoding/json"
+	"os"
 
 	"github.com/hashicorp/serf/command/agent"
 
@@ -22,6 +24,12 @@ import (
 	"github.com/vito/garden/command_runner/remote_command_runner"
 	"github.com/vito/garden/server"
 )
+
+type WardenMember struct {
+	Addr            string
+	AvailableMemory uint64
+	AvailableDisk   uint64
+}
 
 var socketFilePath = flag.String(
 	"socket",
@@ -198,6 +206,8 @@ func main() {
 		log.Fatalln("failed to start:", err)
 	}
 
+	hostname, _ := os.Hostname()
+
 	if serfClient != nil {
 		addrs := strings.Split(*serfMembers, ",")
 		joinedCount, err := serfClient.Join(addrs, false)
@@ -206,6 +216,35 @@ func main() {
 		}
 
 		log.Println("joined", joinedCount, "members of serf cluster")
+
+		for {
+			containers, err := backend.Containers()
+			if err != nil {
+				log.Println("failed to get containers:", err)
+				continue
+			}
+
+			member := WardenMember{
+				Addr: hostname,
+				AvailableMemory: uint64(128 * len(containers)),
+				AvailableDisk:   uint64(1024 * len(containers)),
+			}
+
+			json, err := json.Marshal(member)
+			if err != nil {
+				log.Println("error marshaling member:", err)
+				continue
+			}
+
+			log.Println("emitting warden.capacity:", member)
+
+			err = serfClient.UserEvent("warden.capacity", json, false)
+			if err != nil {
+				log.Println("failed emitting warden.capacity:", err)
+			}
+
+			time.Sleep(10 * time.Second)
+		}
 	}
 
 	select {}
