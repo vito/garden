@@ -3,18 +3,14 @@
 Vagrant.configure("2") do |config|
   config.vm.hostname = "garden"
 
-  config.vm.box = "precise64"
-  config.vm.box_url = "http://files.vagrantup.com/precise64.box"
-
-  config.omnibus.chef_version = :latest
+  config.vm.box = "garden"
 
   config.vm.network "private_network", ip: "192.168.50.5"
 
-  20.times do |i|
+  5.times do |i|
     config.vm.network "forwarded_port", guest: 7012 + i, host: 7012 + i
   end
 
-  config.vm.synced_folder "/", "/host"
   config.vm.synced_folder ENV["GOPATH"], "/go"
 
   config.vm.provider :virtualbox do |v, override|
@@ -23,25 +19,8 @@ Vagrant.configure("2") do |config|
   end
 
   config.vm.provider :vmware_fusion do |v, override|
-    override.vm.box_url = "http://files.vagrantup.com/precise64_vmware.box"
-    v.vmx["numvcpus"] = "4"
+    override.vm.box_url = "./boxes/packer_vmware-iso_vmware.box"
     v.vmx["memsize"] = 3 * 1024
-  end
-
-  config.vm.provision :chef_solo do |chef|
-    chef.cookbooks_path = ["cookbooks", "site-cookbooks"]
-
-    chef.add_recipe "garden::apt-update"
-    chef.add_recipe "build-essential::default"
-    chef.add_recipe "chef-golang"
-    chef.add_recipe "garden::warden"
-    chef.add_recipe "garden::rootfs"
-    chef.add_recipe "garden::dev"
-
-    chef.json = {
-      go: {
-        version: "1.2",
-      },
-    }
+    v.vmx["numvcpus"] = "4"
   end
 end
